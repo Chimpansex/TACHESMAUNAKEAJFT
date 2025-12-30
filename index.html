@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Flame, Scissors, Minus, Plus, Scroll, ChevronUp, ChevronDown } from 'lucide-react';
+import { Flame, Scissors, Minus, Plus, Scroll, ChevronUp, ChevronDown, Sparkles, MessageSquare } from 'lucide-react';
 
 // Datos iniciales
 const initialMembers = [
@@ -38,6 +38,10 @@ export default function App() {
     const [members, setMembers] = useState(initialMembers);
     const [showRules, setShowRules] = useState(false);
     const [loser, setLoser] = useState(null);
+    
+    // Estados para la IA
+    const [oracleMessage, setOracleMessage] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
 
     // Efecto para encontrar al que se va a rapar
     useEffect(() => {
@@ -70,6 +74,56 @@ export default function App() {
 
     const formatMoney = (amount) => {
         return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(amount);
+    };
+
+    // --- FUNCIÓN PARA LLAMAR A GEMINI (IA) ---
+    const consultOracle = async () => {
+        setIsLoading(true);
+        setOracleMessage("");
+        const apiKey = ""; // El sistema inyecta la clave automáticamente
+
+        // Preparamos el contexto para la IA
+        const statusReport = members.map(m => `${m.name} tiene ${m.taches} taches (Debe ${m.taches * 200} pesos)`).join(", ");
+        const leader = loser ? (loser.isTie ? "Hay un empate en el liderato de taches" : `El perdedor supremo es ${loser.name}`) : "Nadie tiene taches aún";
+
+        const prompt = `
+            Eres el Espíritu del Volcán Mauna Kea, un juez antiguo y sarcástico.
+            Aquí está el reporte de multas ("taches") del Escuadrón:
+            ${statusReport}.
+            Situación actual: ${leader}.
+            
+            Tu tarea:
+            1. Da un veredicto corto y gracioso (máximo 40 palabras).
+            2. Búrlate específicamente de quien tenga más taches.
+            3. Si alguien tiene 0 taches, elógialo con sospecha.
+            4. Exige que paguen el dinero para calmar tu ira volcánica.
+            Usa emojis de volcanes, fuego y dinero. Habla con autoridad pero humor mexicano.
+        `;
+
+        try {
+            const response = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }]
+                    })
+                }
+            );
+
+            const data = await response.json();
+            if (data.candidates && data.candidates[0].content) {
+                setOracleMessage(data.candidates[0].content.parts[0].text);
+            } else {
+                setOracleMessage("El volcán está dormido... intenta más tarde. 🌋");
+            }
+        } catch (error) {
+            console.error("Error consultando al oráculo:", error);
+            setOracleMessage("El humo volcánico impidió la visión. Intenta de nuevo.");
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -105,6 +159,12 @@ export default function App() {
                     box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
                 }
 
+                .oracle-box {
+                    background: linear-gradient(135deg, rgba(94,33,41,0.9) 0%, rgba(5,34,75,0.9) 100%);
+                    border: 2px solid #fbbf24;
+                    box-shadow: 0 0 25px rgba(251, 191, 36, 0.3);
+                }
+
                 @keyframes shake {
                     0% { transform: translate(1px, 1px) rotate(0deg); }
                     10% { transform: translate(-1px, -2px) rotate(-1deg); }
@@ -130,11 +190,9 @@ export default function App() {
                 <div className="text-center mb-8">
                     {/* Logo Image Area */}
                     <div className="flex justify-center mb-4">
-                         {/* Se eliminó bg-black para permitir transparencia */}
                          <div className="w-32 h-32 rounded-full border-4 border-[#5E2129] overflow-hidden shadow-[0_0_20px_rgba(94,33,41,0.6)] bg-white/10 flex items-center justify-center relative">
-                            {/* Cambiado a .png para mejor calidad y transparencia */}
                             <img 
-                                src="Mauna Kea.png" 
+                                src="Mauna Kea.PNG" 
                                 alt="Escudo Mauna Kea" 
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
@@ -150,6 +208,44 @@ export default function App() {
                         JUZGADO MAUNA KEA
                     </h1>
                     <p className="text-blue-200 italic">"La ley es dura, pero más dura..."</p>
+                </div>
+
+                {/* --- SECCIÓN NUEVA: ORÁCULO DEL VOLCÁN (GEMINI API) --- */}
+                <div className="mb-8 text-center">
+                    <button 
+                        onClick={consultOracle}
+                        disabled={isLoading}
+                        className="group relative inline-flex items-center justify-center px-8 py-3 font-bold text-white transition-all duration-200 bg-gradient-to-r from-orange-600 to-red-700 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-600 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(234,88,12,0.5)]"
+                    >
+                        {isLoading ? (
+                            <span className="flex items-center gap-2">
+                                <Flame className="w-5 h-5 animate-bounce" />
+                                Convocando al espíritu...
+                            </span>
+                        ) : (
+                            <span className="flex items-center gap-2">
+                                <Sparkles className="w-5 h-5 text-yellow-300" />
+                                INVOCAR AL ORÁCULO
+                                <Sparkles className="w-5 h-5 text-yellow-300" />
+                            </span>
+                        )}
+                    </button>
+
+                    {oracleMessage && (
+                        <div className="mt-4 oracle-box p-6 rounded-xl relative transform transition-all duration-500 animate-in fade-in slide-in-from-bottom-4">
+                            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-[#fbbf24] text-red-900 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest border border-red-900">
+                                Veredicto del Volcán
+                            </div>
+                            <div className="flex gap-4 items-start">
+                                <div className="hidden sm:block p-2 bg-black/30 rounded-full">
+                                    <MessageSquare className="w-8 h-8 text-orange-400" />
+                                </div>
+                                <p className="text-lg text-yellow-50 italic text-left leading-relaxed">
+                                    "{oracleMessage}"
+                                </p>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Banner del Rapado */}
